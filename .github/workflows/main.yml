@@ -3,9 +3,9 @@ name: Build and Deploy
 on:
   push:
     branches:
-      - DEV
-      - STAGING
-      - PROD
+      - dev
+      - staging
+      - prod
 
 env:
   IMAGE_NAME: phwebcloud/python_app
@@ -66,13 +66,13 @@ jobs:
       # Deploy baseado na branch
       - name: Deploy to Environment
         run: |
-          if [[ "${{ github.ref_name }}" == "DEV" ]]; then
-            echo "Deploying to DEV"
-            # Comandos de deploy para DEV
-          elif [[ "${{ github.ref_name }}" == "STAGING" ]]; then
-            echo "Deploying to STAGING"
-            # Comandos de deploy para STAGING
-          elif [[ "${{ github.ref_name }}" == "PROD" ]]; then
-            echo "Deploying to PROD"
-            # Comandos de deploy para PROD com estratégias como Blue-Green
+          if [[ "${{ github.ref_name }}" == "dev" ]]; then
+            echo "Deploying to dev"
+            # Comandos de deploy para dev
+          elif [[ "${{ github.ref_name }}" == "staging" ]]; then
+            echo "Deploying to staging"
+            # Comandos de deploy para staging
+          elif [[ "${{ github.ref_name }}" == "prod" ]]; then
+            echo "Deploying to prod"
+            # Comandos de deploy para prod com estratégias como Blue-Green
           fi
