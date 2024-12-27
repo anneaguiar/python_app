@@ -27,12 +27,14 @@ jobs:
 
       # Instala dependências (exemplo para Python e Node.js)
       - name: Install Dependencies
+        working-directory: app
         run: |
           pip install -r requirements.txt
           npm install
 
       # Realiza os testes
       - name: Run Tests
+        working-directory: app
         run: pytest tests/
 
   docker-build:
@@ -50,7 +52,7 @@ jobs:
       # Construção da imagem Docker com tag
       - name: Build Docker Image
         run: |
-          docker build -t $DOCKER_REGISTRY/${{ github.repository }}/$IMAGE_NAME:${{ github.sha }} .
+          docker build -t $DOCKER_REGISTRY/${{ github.repository }}/$IMAGE_NAME:${{ github.sha }} ./app
           docker tag $DOCKER_REGISTRY/${{ github.repository }}/$IMAGE_NAME:${{ github.sha }} $DOCKER_REGISTRY/${{ github.repository }}/$IMAGE_NAME:latest
 
       # Push da imagem Docker para o GitHub Packages
@@ -68,11 +70,48 @@ jobs:
         run: |
           if [[ "${{ github.ref_name }}" == "dev" ]]; then
             echo "Deploying to dev"
-            # Comandos de deploy para dev
+            docker run -d \
+              --name myapp-dev \
+              --env-file app/.env \
+              -p 8080:8080 \
+              $DOCKER_REGISTRY/${{ github.repository }}/$IMAGE_NAME:latest
           elif [[ "${{ github.ref_name }}" == "staging" ]]; then
             echo "Deploying to staging"
-            # Comandos de deploy para staging
+            docker run -d \
+              --name myapp-staging \
+              --env-file app/.env \
+              -p 8081:8080 \
+              $DOCKER_REGISTRY/${{ github.repository }}/$IMAGE_NAME:latest
           elif [[ "${{ github.ref_name }}" == "prod" ]]; then
-            echo "Deploying to prod"
-            # Comandos de deploy para prod com estratégias como Blue-Green
+            echo "Deploying to prod using Blue-Green strategy"
+            
+            # Identificar containers ativos (green/blue)
+            ACTIVE_CONTAINER=$(docker ps -q --filter "name=myapp-green")
+            if [[ -z "$ACTIVE_CONTAINER" ]]; then
+              NEW_CONTAINER_COLOR="green"
+              OLD_CONTAINER_COLOR="blue"
+            else
+              NEW_CONTAINER_COLOR="blue"
+              OLD_CONTAINER_COLOR="green"
+            fi
+
+            # Subir novo container
+            docker run -d \
+              --name myapp-$NEW_CONTAINER_COLOR \
+              --env-file app/.env \
+              -p 8080:8080 \
+              $DOCKER_REGISTRY/${{ github.repository }}/$IMAGE_NAME:latest
+
+            # Testar o novo container
+            sleep 10  # Espera o serviço estar pronto
+            RESPONSE=$(curl -o /dev/null -s -w "%{http_code}" http://localhost:8080/healthcheck)
+
+            if [[ "$RESPONSE" == "200" ]]; then
+              echo "New container ($NEW_CONTAINER_COLOR) is healthy. Switching traffic."
+              docker stop $OLD_CONTAINER_COLOR && docker rm $OLD_CONTAINER_COLOR
+            else
+              echo "New container ($NEW_CONTAINER_COLOR) failed. Rolling back."
+              docker stop $NEW_CONTAINER_COLOR && docker rm $NEW_CONTAINER_COLOR
+              exit 1
+            fi
           fi
