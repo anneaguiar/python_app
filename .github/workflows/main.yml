@@ -37,11 +37,11 @@ jobs:
       - name: Run tests
         run: |
           docker-compose -f docker-compose.yml up -d
-          docker ps  # Verifique se o container 'flask' está em execução
-          docker-compose logs flask  # Verifique os logs do serviço 'flask'
+          docker ps  # Verifique se o container está em execução
           sleep 10  # Aguarde para garantir que o serviço tenha tempo de iniciar
-          docker-compose exec -T flask curl -f http://localhost:8000/healthcheck
-          docker-compose down
+          curl -f http://localhost:80/healthcheck  # Realiza o healthcheck diretamente
+          docker-compose down  # Desliga os containers após os testes
+
 
 
 
