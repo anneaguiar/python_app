@@ -8,7 +8,7 @@ on:
       - prod
 
 env:
-  IMAGE_NAME: phwebcloud/python_app
+  IMAGE_NAME: anneaguiar/python_app
   DOCKER_REGISTRY: ghcr.io  # GitHub Container Registry
 
 jobs:
@@ -24,23 +24,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y python3-dev libpq-dev build-essential
-      
+
+      # Upgrade de pip, setuptools e wheel
       - name: Upgrade pip, setuptools, and wheel
         run: pip install --upgrade pip setuptools wheel
-     
-      - name: Install psycopg2
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libpq-dev python3-dev build-essential
-          pip install psycopg2-binary==2.9.7
 
-      # Instala dependências (exemplo para Python e Node.js)
-      - name: Install Dependencies
+      # Instalar dependências do projeto
+      - name: Install Project Dependencies
         working-directory: app
-        run: |
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt
 
-      # Realiza os testes
+      # Executar os testes
       - name: Run Tests
         working-directory: app
         run: pytest tests/
@@ -116,10 +110,10 @@ jobs:
 
             if [[ "$RESPONSE" == "200" ]]; then
               echo "New container ($NEW_CONTAINER_COLOR) is healthy. Switching traffic."
-              docker stop $OLD_CONTAINER_COLOR && docker rm $OLD_CONTAINER_COLOR
+              docker stop myapp-$OLD_CONTAINER_COLOR && docker rm myapp-$OLD_CONTAINER_COLOR
             else
               echo "New container ($NEW_CONTAINER_COLOR) failed. Rolling back."
-              docker stop $NEW_CONTAINER_COLOR && docker rm $NEW_CONTAINER_COLOR
+              docker stop myapp-$NEW_CONTAINER_COLOR && docker rm myapp-$NEW_CONTAINER_COLOR
               exit 1
             fi
           fi
