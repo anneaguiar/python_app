@@ -1,119 +1,88 @@
-name: Build and Deploy
+name: Python App CI/CD
 
 on:
   push:
     branches:
-      - dev
+      - main
       - staging
-      - prod
+    tags:
+      - v*
 
-env:
-  IMAGE_NAME: anneaguiar/python_app
-  DOCKER_REGISTRY: ghcr.io  # GitHub Container Registry
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  build-and-test:
+  # Job de Build e Test
+  build_and_test:
     runs-on: ubuntu-latest
     steps:
-      # Checkout o código da branch
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
-      # Instalar dependências do sistema
-      - name: Install System Dependencies
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Build image using Docker Compose
         run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-dev libpq-dev build-essential
+          docker-compose -f docker-compose.yml build
 
-      # Upgrade de pip, setuptools e wheel
-      - name: Upgrade pip, setuptools, and wheel
-        run: pip install --upgrade pip setuptools wheel
-
-      # Instalar dependências do projeto
-      - name: Install Project Dependencies
-        working-directory: app
-        run: pip install -r requirements.txt
-
-      # Executar os testes
-      - name: Run Tests
-        working-directory: app
-        run: pytest tests/
-
-  docker-build:
-    runs-on: ubuntu-latest
-    needs: build-and-test
-    steps:
-      # Checkout o código
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      # Login no GitHub Packages
-      - name: Login to GitHub Container Registry
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login $DOCKER_REGISTRY -u ${{ github.actor }} --password-stdin
-
-      # Construção da imagem Docker com tag
-      - name: Build Docker Image
+      - name: Run tests
         run: |
-          docker build -t $DOCKER_REGISTRY/${{ github.repository }}/$IMAGE_NAME:${{ github.sha }} ./app
-          docker tag $DOCKER_REGISTRY/${{ github.repository }}/$IMAGE_NAME:${{ github.sha }} $DOCKER_REGISTRY/${{ github.repository }}/$IMAGE_NAME:latest
+          docker-compose -f docker-compose.yml up -d
+          docker-compose exec -T app curl -f http://localhost:8000/healthcheck
+          docker-compose down
 
-      # Push da imagem Docker para o GitHub Packages
-      - name: Push Docker Image
-        run: |
-          docker push $DOCKER_REGISTRY/${{ github.repository }}/$IMAGE_NAME:${{ github.sha }}
-          docker push $DOCKER_REGISTRY/${{ github.repository }}/$IMAGE_NAME:latest
+      - name: Set environment variables for DB
+        run: echo "DB_HOST=${{ secrets.DB_HOST }}" >> $GITHUB_ENV
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
 
+  # Job para o GitHub Packages (Deploy)
   deploy:
+    needs: build_and_test
     runs-on: ubuntu-latest
-    needs: docker-build
     steps:
-      # Deploy baseado na branch
-      - name: Deploy to Environment
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Check for existing tag
         run: |
-          if [[ "${{ github.ref_name }}" == "dev" ]]; then
-            echo "Deploying to dev"
-            docker run -d \
-              --name myapp-dev \
-              --env-file app/.env \
-              -p 8080:8080 \
-              $DOCKER_REGISTRY/${{ github.repository }}/$IMAGE_NAME:latest
-          elif [[ "${{ github.ref_name }}" == "staging" ]]; then
-            echo "Deploying to staging"
-            docker run -d \
-              --name myapp-staging \
-              --env-file app/.env \
-              -p 8081:8080 \
-              $DOCKER_REGISTRY/${{ github.repository }}/$IMAGE_NAME:latest
-          elif [[ "${{ github.ref_name }}" == "prod" ]]; then
-            echo "Deploying to prod using Blue-Green strategy"
-            
-            # Identificar containers ativos (green/blue)
-            ACTIVE_CONTAINER=$(docker ps -q --filter "name=myapp-green")
-            if [[ -z "$ACTIVE_CONTAINER" ]]; then
-              NEW_CONTAINER_COLOR="green"
-              OLD_CONTAINER_COLOR="blue"
-            else
-              NEW_CONTAINER_COLOR="blue"
-              OLD_CONTAINER_COLOR="green"
-            fi
-
-            # Subir novo container
-            docker run -d \
-              --name myapp-$NEW_CONTAINER_COLOR \
-              --env-file app/.env \
-              -p 8080:8080 \
-              $DOCKER_REGISTRY/${{ github.repository }}/$IMAGE_NAME:latest
-
-            # Testar o novo container
-            sleep 10  # Espera o serviço estar pronto
-            RESPONSE=$(curl -o /dev/null -s -w "%{http_code}" http://localhost:8080/healthcheck)
-
-            if [[ "$RESPONSE" == "200" ]]; then
-              echo "New container ($NEW_CONTAINER_COLOR) is healthy. Switching traffic."
-              docker stop myapp-$OLD_CONTAINER_COLOR && docker rm myapp-$OLD_CONTAINER_COLOR
-            else
-              echo "New container ($NEW_CONTAINER_COLOR) failed. Rolling back."
-              docker stop myapp-$NEW_CONTAINER_COLOR && docker rm myapp-$NEW_CONTAINER_COLOR
-              exit 1
-            fi
+          TAG=${GITHUB_REF##*/}
+          echo "Checking if tag $TAG already exists"
+          if git tag -l | grep -q "$TAG"; then
+            echo "Tag $TAG already exists, failing job";
+            exit 1;
           fi
+
+      - name: Build Docker image for deployment
+        run: |
+          docker build -t ghcr.io/phwebcloud/python-app:${GITHUB_SHA} ./APP
+          
+      - name: Push Docker image to GitHub Packages
+        run: |
+          docker push ghcr.io/phwebcloud/python-app:${GITHUB_SHA}
+
+  # Job para o Deploy (estratégia de Zero-Downtime)
+  canary_deploy:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Deploy using Canary Deployment
+        run: |
+          # Implementar o deploy para a primeira parte (e.g., 10% dos usuários)
+          echo "Deploying to canary environment"
+          # Comando para realizar o canary deploy
+
+  # Job de Notificação
+  notify_failure:
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify failure to team
+        run: |
+          echo "Deployment failed. Please check the logs."
+          # Comando para notificar, como um Slack, Email ou outro serviço
