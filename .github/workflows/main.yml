@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - staging
+      - dev
     tags:
       - v*
 
@@ -36,11 +37,12 @@ jobs:
       - name: Run tests
         run: |
           docker-compose -f docker-compose.yml up -d
-          docker ps  # Verifique se o container 'app' está em execução
-          docker-compose logs app  # Verifique os logs se o serviço não estiver em execução
+          docker ps  # Verifique se o container 'flask' está em execução
+          docker-compose logs flask  # Verifique os logs do serviço 'flask'
           sleep 10  # Aguarde para garantir que o serviço tenha tempo de iniciar
-          docker-compose exec -T app curl -f http://localhost:8000/healthcheck
+          docker-compose exec -T flask curl -f http://localhost:8000/healthcheck
           docker-compose down
+
 
       - name: Set environment variables for DB
         run: echo "DB_HOST=${{ secrets.DB_HOST }}" >> $GITHUB_ENV
