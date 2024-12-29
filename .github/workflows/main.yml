@@ -30,6 +30,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y python3-dev libpq-dev build-essential
+      
+      - name: Upgrade pip, setuptools, and wheel
+        run: pip install --upgrade pip setuptools wheel
+
 
       # Instala dependências (exemplo para Python e Node.js)
       - name: Install Dependencies
