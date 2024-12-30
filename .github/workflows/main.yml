@@ -39,8 +39,8 @@ jobs:
           docker ps  # Verifica se o container está em execução
           sleep 30  # Aguarda mais tempo para garantir que o serviço tenha tempo de iniciar
           
-          # Usando docker exec para rodar o curl dentro do container 'flask'
-          docker exec -it flask curl -f http://localhost:80/healthcheck
+          # Usando docker exec para rodar o curl dentro do container 'flask', sem -it
+          docker exec flask curl -f http://localhost:80/healthcheck
           
           docker-compose down  # Desliga os containers após os testes
 
