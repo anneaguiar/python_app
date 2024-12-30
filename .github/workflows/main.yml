@@ -38,7 +38,10 @@ jobs:
           docker-compose -f docker-compose.yml up -d
           docker ps  # Verifica se o container está em execução
           sleep 30  # Aguarda mais tempo para garantir que o serviço tenha tempo de iniciar
-          curl -f http://flask:80/healthcheck  # Usa o nome do container 'flask' em vez de 'localhost'
+          
+          # Usando docker exec para rodar o curl dentro do container 'flask'
+          docker exec -it flask curl -f http://localhost:80/healthcheck
+          
           docker-compose down  # Desliga os containers após os testes
 
       - name: Set environment variables for DB
