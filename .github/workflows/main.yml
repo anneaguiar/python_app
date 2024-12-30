@@ -7,10 +7,11 @@ on:
       - staging
       - dev
     tags:
-      - v*  # Definir trigger para tags que começam com "v"
+      - v*
+
   pull_request:
     branches:
-      - main  # Somente PR para a branch main
+      - main
 
 jobs:
   # Job de Build e Test
@@ -33,15 +34,12 @@ jobs:
         run: |
           docker-compose -f docker-compose.yml build
 
-      - name: Run tests
+      - name: Run containers and test
         run: |
           docker-compose -f docker-compose.yml up -d
-          docker ps  # Verifica se o container está em execução
-          sleep 30  # Aguarda mais tempo para garantir que o serviço tenha tempo de iniciar
-          
-          # Usando docker exec para rodar o curl dentro do container 'flask', sem -it
-          docker exec flask curl -f http://localhost:80/healthcheck
-          
+          docker ps  # Verifique se o container está em execução
+          sleep 30  # Aumentando o tempo de espera para garantir que o serviço tenha tempo de inicializar
+          docker exec flask curl -f http://flask:8000/healthcheck  # Realiza o healthcheck diretamente no container Flask
           docker-compose down  # Desliga os containers após os testes
 
       - name: Set environment variables for DB
